@@ -6,6 +6,7 @@ import Html.Events exposing (onClick)
 import Random
 import Http
 import Json.Decode as Decode exposing (Decoder, field, succeed)
+import Json.Decode.Pipeline as DecodePipeline exposing (decode, required, optional, hardcoded)
 
 -- MODEL
 
@@ -41,7 +42,7 @@ update msg model =
         NewGame ->
             ( { model | gameNumber = model.gameNumber + 1 }, getEntries )
         NewEntries (Ok randomEntries) ->
-            ( { model | entries = randomEntries }, Cmd.none )
+            ( { model | entries = List.sortBy .points randomEntries }, Cmd.none )
         NewEntries (Err error) ->
             let
                 _ = Debug.log "Oops" error
@@ -63,11 +64,11 @@ update msg model =
 
 entryDecoder : Decoder Entry
 entryDecoder =
-    Decode.map4 Entry
-        (field "id" Decode.int)
-        (field "phrase" Decode.string)
-        (field "points" Decode.int)
-        (succeed False)
+    decode Entry
+        |> DecodePipeline.required "id" Decode.int
+        |> DecodePipeline.required "phrase" Decode.string
+        |> optional "points" Decode.int 100
+        |> hardcoded False
 
 entryListDecoder : Decoder (List Entry)
 entryListDecoder =
