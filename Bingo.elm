@@ -14,6 +14,7 @@ type alias Model =
     { name : String
     , gameNumber : Int
     , entries : List Entry
+    , alertMessage : Maybe String
     }
 
 type alias Entry =
@@ -28,11 +29,18 @@ initialModel =
     { name = "Desmond"
     , gameNumber = 1
     , entries = []
+    , alertMessage = Just "Oops!"
     }
 
 -- UPDATE
 
-type Msg = NewGame | Mark Int | Sort | NewRandom Int | NewEntries (Result Http.Error (List Entry))
+type Msg
+    = NewGame
+    | Mark Int
+    | Sort
+    | NewRandom Int
+    | NewEntries (Result Http.Error (List Entry))
+    | CloseAlert
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -48,6 +56,8 @@ update msg model =
                 _ = Debug.log "Oops" error
             in
                 (model, Cmd.none)
+        CloseAlert ->
+            ( { model | alertMessage = Nothing }, Cmd.none )
         Mark id ->
             let
                 markEntry e =
@@ -59,6 +69,7 @@ update msg model =
                 ( { model | entries = List.map markEntry model.entries }, Cmd.none )
         Sort ->
             ( { model | entries = List.sortBy .points model.entries }, Cmd.none )
+
 
 -- DECODERS
 
@@ -155,6 +166,7 @@ view model =
     div [ class "content" ]
         [ viewHeader "BUZZWORD BINGO"
         , viewPlayer model.name model.gameNumber
+        , viewAlertMessage model.alertMessage
         , viewEntryList model.entries
         , viewScore (sumMarkedPoints model.entries)
         , div [ class "button-group" ]
@@ -164,6 +176,15 @@ view model =
         , div [ class "debug" ] [ text (toString model) ]
         , viewFooter
         ]
+
+viewAlertMessage : Maybe String -> Html Msg
+viewAlertMessage alertMessage =
+    case alertMessage of
+        Just message ->
+            div [ class "alert" ]
+                [ text message ]
+        Nothing ->
+            text ""
 
 main : Program Never Model Msg
 main =
