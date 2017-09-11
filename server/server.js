@@ -37,6 +37,6 @@ server.use(router)
 
 server.listen(3001, function () {
   console.log()
-  console.log('  🚀  Serving db.json on http://localhost:3000')
+  console.log('  🚀  Serving db.json on http://localhost:3001')
   console.log()
 })
