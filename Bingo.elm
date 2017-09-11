@@ -182,7 +182,9 @@ viewAlertMessage alertMessage =
     case alertMessage of
         Just message ->
             div [ class "alert" ]
-                [ text message ]
+                [ span [ class "close", onClick CloseAlert ] [ text "X" ]
+                , text message
+                ]
         Nothing ->
             text ""
 
