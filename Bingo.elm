@@ -7,6 +7,7 @@ import Random
 import Http
 import Json.Decode as Decode exposing (Decoder, field, succeed)
 import Json.Decode.Pipeline as DecodePipeline exposing (decode, required, optional, hardcoded)
+import Json.Encode as Encode
 
 -- MODEL
 
@@ -22,6 +23,12 @@ type alias Entry =
     , phrase : String
     , points : Int
     , marked : Bool
+    }
+
+type alias Score =
+    { id : Int
+    , name : String
+    , score : Int
     }
 
 initialModel : Model
@@ -41,16 +48,41 @@ type Msg
     | NewRandom Int
     | NewEntries (Result Http.Error (List Entry))
     | CloseAlert
+    | ShareScore
+    | NewScore (Result Http.Error Score)
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         NewRandom randomNumber ->
             ( { model | gameNumber = randomNumber }, Cmd.none )
+
+        ShareScore ->
+            ( model, postScore model )
+
+        NewScore (Ok score) ->
+            let
+                message =
+                    "Your score of "
+                        ++ (toString score.score)
+                        ++ " was successfully shared!"
+            in
+                ( { model | alertMessage = Just message }, Cmd.none )
+
+        NewScore (Err error) ->
+            let
+                message =
+                    "Error posting your score: "
+                        ++ (toString error)
+            in
+                ( { model | alertMessage = Just message }, Cmd.none )
+
         NewGame ->
             ( { model | gameNumber = model.gameNumber + 1 }, getEntries )
+
         NewEntries (Ok randomEntries) ->
             ( { model | entries = List.sortBy .points randomEntries }, Cmd.none )
+
         NewEntries (Err error) ->
             let
                 errorMessage =
@@ -77,8 +109,10 @@ update msg model =
                             reason
             in
                 ( { model | alertMessage = Just errorMessage }, Cmd.none )
+
         CloseAlert ->
             ( { model | alertMessage = Nothing }, Cmd.none )
+
         Mark id ->
             let
                 markEntry e =
@@ -88,11 +122,12 @@ update msg model =
                         e
             in
                 ( { model | entries = List.map markEntry model.entries }, Cmd.none )
+
         Sort ->
             ( { model | entries = List.sortBy .points model.entries }, Cmd.none )
 
 
--- DECODERS
+-- DECODERS/ENCODERS
 
 entryDecoder : Decoder Entry
 entryDecoder =
@@ -106,6 +141,20 @@ entryListDecoder : Decoder (List Entry)
 entryListDecoder =
     Decode.list entryDecoder
 
+scoreDecoder : Decoder Score
+scoreDecoder =
+    decode Score
+        |> DecodePipeline.required "id" Decode.int
+        |> DecodePipeline.required "name" Decode.string
+        |> DecodePipeline.required "score" Decode.int
+
+encodeScore : Model -> Encode.Value
+encodeScore model =
+    Encode.object
+        [ ("name", Encode.string model.name)
+        , ("score", Encode.int (sumMarkedPoints model.entries))
+        ]
+
 -- COMMANDS
 
 generateRandomNumber : Cmd Msg
@@ -116,11 +165,35 @@ entriesUrl : String
 entriesUrl =
     "http://localhost:3001/random-entries"
 
+postScore : Model -> Cmd Msg
+postScore model =
+    let
+        url =
+            "http://localhost:3001/scores"
+
+        body =
+            encodeScore model
+                |> Http.jsonBody
+
+        request =
+            Http.post url body scoreDecoder
+    in
+        Http.send NewScore request
+
 getEntries : Cmd Msg
 getEntries =
     entryListDecoder
         |> Http.get entriesUrl
         |> Http.send NewEntries
+
+isNothing : Maybe a -> Bool
+isNothing maybe =
+    case maybe of
+        Just _ ->
+            False
+
+        Nothing ->
+            True
 
 -- VIEW
 
@@ -192,6 +265,7 @@ view model =
         , viewScore (sumMarkedPoints model.entries)
         , div [ class "button-group" ]
                 [ button [ onClick NewGame ] [ text "New Game" ]
+                , button [ onClick ShareScore ] [ text "Share Score" ]
                 , button [ onClick Sort ] [ text "Sort" ]
                 ]
         , div [ class "debug" ] [ text (toString model) ]
